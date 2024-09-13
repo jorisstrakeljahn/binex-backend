@@ -17,12 +17,16 @@ public class Participation {
     @Column(name = "timestamp", nullable = false)
     private LocalDateTime timestamp;
 
+    @Column(name = "participant_points", nullable = false)
+    private int participantPoints;
+
     public Participation() {
     }
 
-    public Participation(String hashValue, LocalDateTime timestamp) {
+    public Participation(String hashValue, LocalDateTime timestamp, int participantPoints) {
         this.hashValue = hashValue;
         this.timestamp = timestamp;
+        this.participantPoints = participantPoints;
     }
 
     // Getter und Setter
@@ -44,5 +48,13 @@ public class Participation {
 
     public void setTimestamp(LocalDateTime timestamp) {
         this.timestamp = timestamp;
+    }
+
+    public int getParticipantPoints() {
+        return participantPoints;
+    }
+
+    public void setParticipantPoints(int participantPoints) {
+        this.participantPoints = participantPoints;
     }
 }

@@ -16,9 +16,11 @@ public class ParticipationController {
     }
 
     @PostMapping("/mint-nft")
-    public ResponseEntity<String> mintNFT(@RequestParam String publicKey, @RequestParam String surveyId) {
+    public ResponseEntity<String> mintNFT(@RequestParam String publicKey,
+                                          @RequestParam String surveyId,
+                                          @RequestParam String participantPoints) {
         try {
-            boolean isNewParticipation = participationService.processParticipation(publicKey, surveyId);
+            boolean isNewParticipation = participationService.processParticipation(publicKey, surveyId, participantPoints);
             if (isNewParticipation) {
                 return ResponseEntity.ok("NFT wurde erfolgreich gemintet.");
             } else {
