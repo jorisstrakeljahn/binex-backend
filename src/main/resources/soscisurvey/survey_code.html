@@ -1,0 +1,56 @@
+<!-- Füge diesen Abschnitt am Ende deiner SoSci Survey Umfrage ein -->
+
+<h3>Gutschrift von Versuchspunkten</h3>
+<p>Um Ihre Versuchspunkte gutgeschrieben zu bekommen, geben Sie bitte Ihren Metamask Public Key ein:</p>
+<input type="text" id="publicKeyInput" placeholder="0x...">
+<button type="button" onclick="sendPublicKey()">Versuchspunkte erhalten</button>
+
+<script>
+    // *** Umfrageersteller: Bitte hier die Einstellungen vornehmen ***
+
+    // Geben Sie hier die eindeutige ID Ihrer Umfrage ein
+    var surveyId = 'survey_12345'; // z.B. 'survey_12345'
+
+    // Geben Sie hier die Anzahl der Versuchspersonenpunkte an, die für diese Umfrage vergeben werden
+    var participantPoints = '2'; // z.B. '3'
+
+    // *** Ende der Einstellungen ***
+
+    function sendPublicKey() {
+        var publicKey = document.getElementById('publicKeyInput').value.trim();
+
+        if (publicKey === '') {
+            alert('Bitte geben Sie Ihren Metamask Public Key ein.');
+            return;
+        }
+
+        fetch('http://localhost:8080/api/mint-nft', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                'publicKey': publicKey,
+                'surveyId': surveyId,
+                'participantPoints': participantPoints
+            })
+        })
+            .then(response => {
+                response.text().then(text => {
+                    console.log('Response Status:', response.status);
+                    console.log('Response Body:', text);
+                    if (response.ok) {
+                        alert('Ihre Versuchspunkte wurden erfolgreich gutgeschrieben.');
+                    } else if (response.status === 409) {
+                        alert('Sie haben für diese Umfrage bereits Versuchspunkte erhalten.');
+                    } else {
+                        alert('Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.');
+                    }
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.');
+            });
+    }
+</script>
