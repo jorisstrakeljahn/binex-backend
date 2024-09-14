@@ -4,10 +4,14 @@ import de.hsbi.binex.binex_backend.service.ParticipationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api")
 public class ParticipationController {
+
+    private static final Logger logger = LoggerFactory.getLogger(ParticipationController.class);
 
     private final ParticipationService participationService;
 
@@ -27,11 +31,13 @@ public class ParticipationController {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body("Teilnahme wurde bereits registriert.");
             }
         } catch (IllegalArgumentException e) {
+            logger.error("Ungültige Eingaben: {}", e.getMessage());
             return ResponseEntity.badRequest().body("Ungültige Eingaben: " + e.getMessage());
         } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Es ist ein Fehler aufgetreten.");
+            logger.error("Fehler beim Minting-Prozess", e);
+            // Rückgabe der detaillierten Fehlermeldung
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Es ist ein Fehler aufgetreten: " + e.getMessage());
         }
     }
 }
-
