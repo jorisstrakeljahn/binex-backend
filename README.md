@@ -8,10 +8,6 @@ Dies ist das Backend-Projekt für das Binex-System, das dazu dient, Versuchspers
 - [Aktueller Funktionsumfang](#aktueller-funktionsumfang)
 - [Zukünftige Funktionen](#zukünftige-funktionen)
 - [Installation und Einrichtung](#installation-und-einrichtung)
-- [Verwendung des SoSciSurvey-Codes](#verwendung-des-soscisurvey-codes)
-- [API-Endpunkte](#api-endpunkte)
-- [Beiträge](#beiträge)
-- [Lizenz](#lizenz)
 
 ---
 
@@ -21,7 +17,7 @@ Das Binex Backend ist eine Spring Boot Anwendung, die folgende Hauptfunktionen b
 
 - **Verarbeitung von Teilnehmerdaten**: Empfang von Public Keys und Umfrage-IDs von Umfrageteilnehmern.
 - **Hashing und Speicherung**: Hashing von Teilnehmerdaten mit einem Salt und Speicherung in einer PostgreSQL-Datenbank, um Mehrfachbelohnungen zu verhindern.
-- **NFT-Minting** (zukünftig): Automatisches Minten von NFTs auf der Q-Blockchain, basierend auf der Anzahl der erhaltenen Versuchspersonenpunkte.
+- **NFT-Minting**: Automatisches Minten von NFTs auf der Q-Blockchain, basierend auf der Anzahl der erhaltenen Versuchspersonenpunkte.
 
 ## **Aktueller Funktionsumfang**
 
@@ -33,7 +29,7 @@ Das Binex Backend ist eine Spring Boot Anwendung, die folgende Hauptfunktionen b
         - Validiert die Eingaben.
         - Generiert einen Hash aus Public Key, Umfrage-ID und einem geheimen Salt.
         - Speichert den Hash in der Datenbank, um doppelte Einreichungen zu verhindern.
-        - Ruft die `mintNFT` Methode auf (derzeit Platzhalter), um das NFT zu minten.
+        - Ruft die `mintNFT` Methode auf, um das NFT zu minten.
 
 - **Datenbankintegration**:
 
@@ -50,25 +46,10 @@ Das Binex Backend ist eine Spring Boot Anwendung, die folgende Hauptfunktionen b
 
 ## **Zukünftige Funktionen**
 
-- **Implementierung der `mintNFT` Methode**:
-
-    - Integration mit der Q-Blockchain-API, um NFTs tatsächlich zu minten.
-    - Auswahl des richtigen NFT basierend auf der Anzahl der Versuchspersonenpunkte.
-
 - **Sicherheit und Verschlüsselung**:
 
     - Umstellung auf HTTPS für sichere Datenübertragung.
     - Erweiterte Sicherheitsmaßnahmen, um das System vor Angriffen zu schützen.
-
-- **Erweiterte API-Funktionen**:
-
-    - Hinzufügen von Endpunkten für Administratoren zur Verwaltung von Umfragen und Teilnehmern.
-    - Bereitstellung von Statistiken und Berichten.
-
-- **Dokumentation und Benutzerfreundlichkeit**:
-
-    - Ausführliche Anleitungen für Umfrageersteller und Teilnehmer.
-    - Verbesserte Fehlermeldungen und Feedbackmechanismen.
 
 ## **Installation und Einrichtung**
 

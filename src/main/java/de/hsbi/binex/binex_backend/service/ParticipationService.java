@@ -1,10 +1,20 @@
 package de.hsbi.binex.binex_backend.service;
 
+import de.hsbi.binex.binex_backend.contracts.SimpleNFT;
 import de.hsbi.binex.binex_backend.entity.Participation;
 import de.hsbi.binex.binex_backend.repository.ParticipationRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.web3j.crypto.Credentials;
+import org.web3j.protocol.Web3j;
+import org.web3j.protocol.http.HttpService;
+import org.web3j.tx.RawTransactionManager;
+import org.web3j.tx.gas.StaticGasProvider;
+import org.web3j.protocol.core.methods.response.TransactionReceipt;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
@@ -12,86 +22,170 @@ import java.time.LocalDateTime;
 @Service
 public class ParticipationService {
 
+    private static final Logger logger = LoggerFactory.getLogger(ParticipationService.class);
+
     private final ParticipationRepository participationRepository;
 
-    // Salt-Wert aus application.properties einlesen
+    // Read salt value from application.properties
     @Value("${app.hash.salt}")
     private String salt;
+
+    // Read contract address from application.properties
+    @Value("${app.contract.address}")
+    private String contractAddress;
+
+    @Value("${app.qblockchain.url}")
+    private String blockchainUrl;
+
+    @Value("${app.qblockchain.chainId}")
+    private int chainId;
 
     public ParticipationService(ParticipationRepository participationRepository) {
         this.participationRepository = participationRepository;
     }
 
     public boolean processParticipation(String publicKey, String surveyId, String participantPoints) throws Exception {
-        // Eingaben validieren
+        logger.info("Processing participation for publicKey: {}, surveyId: {}, participantPoints: {}",
+                publicKey, surveyId, participantPoints);
+
+        // Validate inputs
         if (publicKey == null || publicKey.isEmpty() ||
                 surveyId == null || surveyId.isEmpty() ||
                 participantPoints == null || participantPoints.isEmpty()) {
-            throw new IllegalArgumentException("Public Key, Survey ID und Participant Points dürfen nicht leer sein.");
+            logger.error("Input validation failed: One or more parameters are empty.");
+            throw new IllegalArgumentException("Public Key, Survey ID, and Participant Points must not be empty.");
         }
 
-        // Optional: Überprüfe, ob participantPoints eine gültige Zahl ist
+        // Check if participantPoints is a valid number
         int points;
         try {
             points = Integer.parseInt(participantPoints);
             if (points <= 0) {
-                throw new IllegalArgumentException("Participant Points müssen eine positive Zahl sein.");
+                logger.error("Participant Points must be a positive number. Received: {}", participantPoints);
+                throw new IllegalArgumentException("Participant Points must be a positive number.");
             }
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Participant Points müssen eine gültige Zahl sein.");
+            logger.error("Participant Points is not a valid number. Received: {}", participantPoints);
+            throw new IllegalArgumentException("Participant Points must be a valid number.");
         }
 
-        // Kombiniere Salt, Public Key und Survey ID
+        // Combine salt, publicKey, and surveyId
         String combinedString = salt + publicKey + surveyId;
+        logger.debug("Combined string for hashing: {}", combinedString);
 
-        // Hash generieren
+        // Generate hash
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hashBytes = digest.digest(combinedString.getBytes(StandardCharsets.UTF_8));
 
-        // Hash in Hex-String umwandeln
+        // Convert hash to hex string
         StringBuilder sb = new StringBuilder();
         for (byte b : hashBytes) {
             sb.append(String.format("%02x", b));
         }
         String hashValue = sb.toString();
+        logger.info("Generated hash value: {}", hashValue);
 
-        // Überprüfen, ob Hash bereits existiert
+        // Check if hash already exists
         if (participationRepository.existsByHashValue(hashValue)) {
-            return false; // Teilnahme bereits registriert
+            logger.warn("Participation already registered for hash: {}", hashValue);
+            return false;
         }
 
-        // Neue Teilnahme speichern
-        Participation participation = new Participation(hashValue, LocalDateTime.now(), points);
-        participationRepository.save(participation);
+        // Mint NFT
+        try {
+            mintNFT(publicKey, points);
+            logger.info("NFT successfully minted, proceeding to save participation...");
 
-        // NFT minten (Funktion implementieren)
-        mintNFT(publicKey, points);
+            // Save participation after successful minting
+            Participation participation = new Participation(hashValue, LocalDateTime.now(), points);
+            participationRepository.save(participation);
+            logger.info("Participation successfully saved with hash: {}", hashValue);
+
+        } catch (Exception e) {
+            logger.error("Error during minting process, participation will not be saved", e);
+            throw e;
+        }
 
         return true;
     }
 
-    private void mintNFT(String publicKey, int participantPoints) {
-        String nftType;
-        if (participantPoints == 1) {
-            nftType = "NFT_Typ_1_Punkt";
-        } else if (participantPoints == 2) {
-            nftType = "NFT_Typ_2_Punkte";
-        } else if (participantPoints == 3) {
-            nftType = "NFT_Typ_3_Punkte";
-        } else {
-            // Default: 3 Punkte
-            nftType = "NFT_Typ_3_Punkte";
+    private void mintNFT(String publicKey, int participantPoints) throws Exception {
+        logger.info("Starting NFT minting for publicKey: {}, participantPoints: {}", publicKey, participantPoints);
+
+        // Connect to the Q-Blockchain using the URL from application.properties
+        Web3j web3j = Web3j.build(new HttpService(blockchainUrl));
+        logger.info("Connected to Q-Blockchain at URL: {}", blockchainUrl);
+
+        // Load credentials
+        String privateKey = System.getenv("PRIVATE_KEY");
+        if (privateKey == null || privateKey.isEmpty()) {
+            logger.error("PRIVATE_KEY environment variable is not set.");
+            throw new IllegalStateException("PRIVATE_KEY environment variable is not set.");
         }
+        Credentials credentials = Credentials.create(privateKey);
+        logger.info("Credentials successfully loaded.");
 
-        System.err.println("NFT minten für Public Key: " + publicKey + ", Punkte: " + participantPoints + ", NFT-Typ: " + nftType);
+        // Create TransactionManager with Chain ID
+        RawTransactionManager transactionManager = new RawTransactionManager(web3j, credentials, chainId);
+        logger.info("TransactionManager created with Chain ID {}", chainId);
 
-        // Beispiel (Pseudocode):
+        // Set gas price and gas limit
+        BigInteger networkGasPrice = web3j.ethGasPrice().send().getGasPrice();
+        logger.info("Current network gas price: {} Wei", networkGasPrice);
 
-        // 1. Erstelle eine Verbindung zur Q-Blockchain
-        // 2. Wähle das richtige NFT basierend auf participantPoints
-        // 3. Führe den Minting-Prozess durch
-        // 4. Behandle Rückmeldungen und Fehler
+        BigInteger gasPrice = networkGasPrice.multiply(BigInteger.valueOf(105)).divide(BigInteger.valueOf(100));
+        BigInteger gasLimit = BigInteger.valueOf(400_000);
+        logger.info("Gas price set to {} Wei, gas limit set to {}", gasPrice, gasLimit);
+
+        // Create StaticGasProvider with defined values
+        StaticGasProvider gasProvider = new StaticGasProvider(gasPrice, gasLimit);
+
+        // Load Smart Contract
+        SimpleNFT contract = SimpleNFT.load(
+                contractAddress,
+                web3j,
+                transactionManager,
+                gasProvider
+        );
+        logger.info("Smart Contract loaded with address: {}", contractAddress);
+
+        // Generate TokenID (e.g., based on current timestamp)
+        BigInteger tokenId = BigInteger.valueOf(System.currentTimeMillis());
+        logger.info("TokenID generated: {}", tokenId);
+
+        // Determine TokenURI based on participantPoints
+        String tokenURI = getTokenURIForPoints(participantPoints);
+        logger.info("TokenURI determined: {}", tokenURI);
+
+        // Mint NFT
+        try {
+            TransactionReceipt receipt = contract.mintTo(publicKey, tokenId, tokenURI).send();
+            logger.info("NFT successfully minted. Transaction Hash: {}", receipt.getTransactionHash());
+        } catch (Exception e) {
+            logger.error("Error while sending transaction", e);
+            throw new Exception("Error during NFT minting: " + e.getMessage(), e);
+        }
+    }
+
+    private String getTokenURIForPoints(int participantPoints) {
+        // Return the appropriate TokenURI based on points
+        String tokenURI;
+        switch (participantPoints) {
+            case 1:
+                tokenURI = "https://deinserver.de/metadata/1.json";
+                break;
+            case 2:
+                tokenURI = "https://deinserver.de/metadata/2.json";
+                break;
+            case 3:
+                tokenURI = "https://deinserver.de/metadata/3.json";
+                break;
+            default:
+                // Return a default TokenURI for other values
+                tokenURI = "https://www.daab.de/fileadmin/_processed_/6/1/csm_10-punkte_6a136a1311.png";
+                break;
+        }
+        logger.debug("TokenURI for participantPoints {}: {}", participantPoints, tokenURI);
+        return tokenURI;
     }
 }
-
-

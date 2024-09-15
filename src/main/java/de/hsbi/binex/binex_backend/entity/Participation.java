@@ -29,7 +29,7 @@ public class Participation {
         this.participantPoints = participantPoints;
     }
 
-    // Getter und Setter
+    // getter and setter
     public Long getId() {
         return id;
     }

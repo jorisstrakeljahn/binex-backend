@@ -4,10 +4,14 @@ import de.hsbi.binex.binex_backend.service.ParticipationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api")
 public class ParticipationController {
+
+    private static final Logger logger = LoggerFactory.getLogger(ParticipationController.class);
 
     private final ParticipationService participationService;
 
@@ -22,16 +26,18 @@ public class ParticipationController {
         try {
             boolean isNewParticipation = participationService.processParticipation(publicKey, surveyId, participantPoints);
             if (isNewParticipation) {
-                return ResponseEntity.ok("NFT wurde erfolgreich gemintet.");
+                return ResponseEntity.ok("NFT was successfully minted.");
             } else {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body("Teilnahme wurde bereits registriert.");
+                return ResponseEntity.status(HttpStatus.CONFLICT).body("Participation has already been registered.");
             }
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body("Ungültige Eingaben: " + e.getMessage());
+            logger.error("Invalid input: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Invalid input: " + e.getMessage());
         } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Es ist ein Fehler aufgetreten.");
+            logger.error("Error during the minting process", e);
+            // Return detailed error message
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An error occurred: " + e.getMessage());
         }
     }
 }
-
