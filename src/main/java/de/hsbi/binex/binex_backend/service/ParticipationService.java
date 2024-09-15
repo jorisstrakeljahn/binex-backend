@@ -26,75 +26,83 @@ public class ParticipationService {
 
     private final ParticipationRepository participationRepository;
 
-    // Salt-Wert aus application.properties einlesen
+    // Read salt value from application.properties
     @Value("${app.hash.salt}")
     private String salt;
 
-    // Contract-Adresse aus application.properties einlesen
+    // Read contract address from application.properties
     @Value("${app.contract.address}")
     private String contractAddress;
+
+    @Value("${app.qblockchain.url}")
+    private String blockchainUrl;
+
+    @Value("${app.qblockchain.chainId}")
+    private int chainId;
 
     public ParticipationService(ParticipationRepository participationRepository) {
         this.participationRepository = participationRepository;
     }
 
     public boolean processParticipation(String publicKey, String surveyId, String participantPoints) throws Exception {
-        logger.info("Verarbeite Teilnahme für publicKey: {}, surveyId: {}, participantPoints: {}",
+        logger.info("Processing participation for publicKey: {}, surveyId: {}, participantPoints: {}",
                 publicKey, surveyId, participantPoints);
 
-        // Eingaben validieren
+        // Validate inputs
         if (publicKey == null || publicKey.isEmpty() ||
                 surveyId == null || surveyId.isEmpty() ||
                 participantPoints == null || participantPoints.isEmpty()) {
-            logger.error("Eingabevalidierung fehlgeschlagen: Ein oder mehrere Parameter sind leer.");
-            throw new IllegalArgumentException("Public Key, Survey ID und Participant Points dürfen nicht leer sein.");
+            logger.error("Input validation failed: One or more parameters are empty.");
+            throw new IllegalArgumentException("Public Key, Survey ID, and Participant Points must not be empty.");
         }
 
-        // Überprüfe, ob participantPoints eine gültige Zahl ist
+        // Check if participantPoints is a valid number
         int points;
         try {
             points = Integer.parseInt(participantPoints);
             if (points <= 0) {
-                logger.error("Participant Points müssen eine positive Zahl sein. Erhalten: {}", participantPoints);
-                throw new IllegalArgumentException("Participant Points müssen eine positive Zahl sein.");
+                logger.error("Participant Points must be a positive number. Received: {}", participantPoints);
+                throw new IllegalArgumentException("Participant Points must be a positive number.");
             }
         } catch (NumberFormatException e) {
-            logger.error("Participant Points sind keine gültige Zahl. Erhalten: {}", participantPoints);
-            throw new IllegalArgumentException("Participant Points müssen eine gültige Zahl sein.");
+            logger.error("Participant Points is not a valid number. Received: {}", participantPoints);
+            throw new IllegalArgumentException("Participant Points must be a valid number.");
         }
 
-        // Kombiniere Salt, Public Key und Survey ID
+        // Combine salt, publicKey, and surveyId
         String combinedString = salt + publicKey + surveyId;
-        logger.debug("Kombinierter String für Hashing: {}", combinedString);
+        logger.debug("Combined string for hashing: {}", combinedString);
 
-        // Hash generieren
+        // Generate hash
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hashBytes = digest.digest(combinedString.getBytes(StandardCharsets.UTF_8));
 
-        // Hash in Hex-String umwandeln
+        // Convert hash to hex string
         StringBuilder sb = new StringBuilder();
         for (byte b : hashBytes) {
             sb.append(String.format("%02x", b));
         }
         String hashValue = sb.toString();
-        logger.info("Generierter Hashwert: {}", hashValue);
+        logger.info("Generated hash value: {}", hashValue);
 
-        // Überprüfen, ob Hash bereits existiert
+        // Check if hash already exists
         if (participationRepository.existsByHashValue(hashValue)) {
-            logger.warn("Teilnahme bereits registriert für Hash: {}", hashValue);
+            logger.warn("Participation already registered for hash: {}", hashValue);
             return false;
         }
 
-        // Neue Teilnahme speichern
-        Participation participation = new Participation(hashValue, LocalDateTime.now(), points);
-        participationRepository.save(participation);
-        logger.info("Teilnahme erfolgreich gespeichert mit Hash: {}", hashValue);
-
-        // NFT minten
+        // Mint NFT
         try {
             mintNFT(publicKey, points);
+            logger.info("NFT successfully minted, proceeding to save participation...");
+
+            // Save participation after successful minting
+            Participation participation = new Participation(hashValue, LocalDateTime.now(), points);
+            participationRepository.save(participation);
+            logger.info("Participation successfully saved with hash: {}", hashValue);
+
         } catch (Exception e) {
-            logger.error("Fehler beim Minting-Prozess", e);
+            logger.error("Error during minting process, participation will not be saved", e);
             throw e;
         }
 
@@ -102,65 +110,65 @@ public class ParticipationService {
     }
 
     private void mintNFT(String publicKey, int participantPoints) throws Exception {
-        logger.info("Starte NFT-Minting für publicKey: {}, participantPoints: {}", publicKey, participantPoints);
+        logger.info("Starting NFT minting for publicKey: {}, participantPoints: {}", publicKey, participantPoints);
 
-        // Verbindung zur Q-Blockchain herstellen
-        Web3j web3j = Web3j.build(new HttpService("https://rpc.qtestnet.org"));
-        logger.info("Verbindung zur Q-Blockchain hergestellt.");
+        // Connect to the Q-Blockchain using the URL from application.properties
+        Web3j web3j = Web3j.build(new HttpService(blockchainUrl));
+        logger.info("Connected to Q-Blockchain at URL: {}", blockchainUrl);
 
-        // Credentials laden
+        // Load credentials
         String privateKey = System.getenv("PRIVATE_KEY");
         if (privateKey == null || privateKey.isEmpty()) {
-            logger.error("PRIVATE_KEY Umgebungsvariable ist nicht gesetzt.");
-            throw new IllegalStateException("PRIVATE_KEY Umgebungsvariable ist nicht gesetzt.");
+            logger.error("PRIVATE_KEY environment variable is not set.");
+            throw new IllegalStateException("PRIVATE_KEY environment variable is not set.");
         }
         Credentials credentials = Credentials.create(privateKey);
-        logger.info("Credentials erfolgreich geladen.");
+        logger.info("Credentials successfully loaded.");
 
-        // Chain ID für das Q-Testnet
-        int chainId = 35443;
-
-        // TransactionManager mit Chain ID erstellen
+        // Create TransactionManager with Chain ID
         RawTransactionManager transactionManager = new RawTransactionManager(web3j, credentials, chainId);
-        logger.info("TransactionManager mit Chain ID {} erstellt.", chainId);
+        logger.info("TransactionManager created with Chain ID {}", chainId);
 
-        // Gaspreis und Gaslimit festlegen
-        BigInteger gasPrice = BigInteger.valueOf(20_000_000_000L); // 20 Gwei
-        BigInteger gasLimit = BigInteger.valueOf(300_000); // Beispielwert, anpassen falls nötig
-        logger.info("Gaspreis festgelegt auf {} Wei, Gaslimit auf {}", gasPrice, gasLimit);
+        // Set gas price and gas limit
+        BigInteger networkGasPrice = web3j.ethGasPrice().send().getGasPrice();
+        logger.info("Current network gas price: {} Wei", networkGasPrice);
 
-        // Erstelle einen StaticGasProvider mit den festgelegten Werten
+        BigInteger gasPrice = networkGasPrice.multiply(BigInteger.valueOf(105)).divide(BigInteger.valueOf(100));
+        BigInteger gasLimit = BigInteger.valueOf(400_000);
+        logger.info("Gas price set to {} Wei, gas limit set to {}", gasPrice, gasLimit);
+
+        // Create StaticGasProvider with defined values
         StaticGasProvider gasProvider = new StaticGasProvider(gasPrice, gasLimit);
 
-        // Smart Contract laden
+        // Load Smart Contract
         SimpleNFT contract = SimpleNFT.load(
                 contractAddress,
                 web3j,
                 transactionManager,
                 gasProvider
         );
-        logger.info("Smart Contract geladen mit Adresse: {}", contractAddress);
+        logger.info("Smart Contract loaded with address: {}", contractAddress);
 
-        // TokenID generieren (z.B. basierend auf aktuellem Timestamp)
+        // Generate TokenID (e.g., based on current timestamp)
         BigInteger tokenId = BigInteger.valueOf(System.currentTimeMillis());
-        logger.info("TokenID generiert: {}", tokenId);
+        logger.info("TokenID generated: {}", tokenId);
 
-        // TokenURI basierend auf participantPoints bestimmen
+        // Determine TokenURI based on participantPoints
         String tokenURI = getTokenURIForPoints(participantPoints);
-        logger.info("TokenURI bestimmt: {}", tokenURI);
+        logger.info("TokenURI determined: {}", tokenURI);
 
-        // NFT minten
+        // Mint NFT
         try {
             TransactionReceipt receipt = contract.mintTo(publicKey, tokenId, tokenURI).send();
-            logger.info("NFT erfolgreich gemintet. Transaction Hash: {}", receipt.getTransactionHash());
+            logger.info("NFT successfully minted. Transaction Hash: {}", receipt.getTransactionHash());
         } catch (Exception e) {
-            logger.error("Fehler beim Senden der Transaktion", e);
-            throw new Exception("Fehler beim Minting des NFTs: " + e.getMessage(), e);
+            logger.error("Error while sending transaction", e);
+            throw new Exception("Error during NFT minting: " + e.getMessage(), e);
         }
     }
 
     private String getTokenURIForPoints(int participantPoints) {
-        // Basierend auf den Punkten den entsprechenden TokenURI zurückgeben
+        // Return the appropriate TokenURI based on points
         String tokenURI;
         switch (participantPoints) {
             case 1:
@@ -173,11 +181,11 @@ public class ParticipationService {
                 tokenURI = "https://deinserver.de/metadata/3.json";
                 break;
             default:
-                // Für andere Werte einen Standard-TokenURI zurückgeben
+                // Return a default TokenURI for other values
                 tokenURI = "https://www.daab.de/fileadmin/_processed_/6/1/csm_10-punkte_6a136a1311.png";
                 break;
         }
-        logger.debug("TokenURI für participantPoints {}: {}", participantPoints, tokenURI);
+        logger.debug("TokenURI for participantPoints {}: {}", participantPoints, tokenURI);
         return tokenURI;
     }
 }
