@@ -26,18 +26,18 @@ public class ParticipationController {
         try {
             boolean isNewParticipation = participationService.processParticipation(publicKey, surveyId, participantPoints);
             if (isNewParticipation) {
-                return ResponseEntity.ok("NFT wurde erfolgreich gemintet.");
+                return ResponseEntity.ok("NFT was successfully minted.");
             } else {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body("Teilnahme wurde bereits registriert.");
+                return ResponseEntity.status(HttpStatus.CONFLICT).body("Participation has already been registered.");
             }
         } catch (IllegalArgumentException e) {
-            logger.error("Ungültige Eingaben: {}", e.getMessage());
-            return ResponseEntity.badRequest().body("Ungültige Eingaben: " + e.getMessage());
+            logger.error("Invalid input: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Invalid input: " + e.getMessage());
         } catch (Exception e) {
-            logger.error("Fehler beim Minting-Prozess", e);
-            // Rückgabe der detaillierten Fehlermeldung
+            logger.error("Error during the minting process", e);
+            // Return detailed error message
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Es ist ein Fehler aufgetreten: " + e.getMessage());
+                    .body("An error occurred: " + e.getMessage());
         }
     }
 }
