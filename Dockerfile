@@ -1,5 +1,5 @@
-# Verwende ein leichtgewichtiges Java Image
-FROM eclipse-temurin:17-jre-alpine
+# Verwende ein leichtgewichtiges Java 21 Image
+FROM eclipse-temurin:21-jre-alpine
 
 # Erstelle ein Verzeichnis für die App
 WORKDIR /app
@@ -12,4 +12,5 @@ EXPOSE 8080
 
 # Setze den Startbefehl
 CMD ["java", "-jar", "app.jar"]
+
 
