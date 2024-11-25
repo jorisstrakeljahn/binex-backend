@@ -1,8 +1,6 @@
 package de.hsbi.binex.binex_backend.service;
 
-import de.hsbi.binex.binex_backend.contracts.SimpleNFT;
-import de.hsbi.binex.binex_backend.entity.Participation;
-import de.hsbi.binex.binex_backend.repository.ParticipationRepository;
+import de.hsbi.binex.binex_backend.contracts.BinexNFT;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.web3j.crypto.Credentials;
@@ -24,8 +22,6 @@ public class ParticipationService {
 
     private static final Logger logger = LoggerFactory.getLogger(ParticipationService.class);
 
-    private final ParticipationRepository participationRepository;
-
     // Read salt value from application.properties
     @Value("${app.hash.salt}")
     private String salt;
@@ -40,15 +36,35 @@ public class ParticipationService {
     @Value("${app.qblockchain.chainId}")
     private int chainId;
 
-    public ParticipationService(ParticipationRepository participationRepository) {
-        this.participationRepository = participationRepository;
+    public ParticipationService() {
     }
-
     public boolean processParticipation(String publicKey, String surveyId, String participantPoints) throws Exception {
         logger.info("Processing participation for publicKey: {}, surveyId: {}, participantPoints: {}",
                 publicKey, surveyId, participantPoints);
 
-        // Validate inputs
+        // Eingabevalidierung
+        validateInputs(publicKey, surveyId, participantPoints);
+
+        int points = Integer.parseInt(participantPoints);
+
+        // Generiere den Hash-Wert
+        String hashValue = generateHash(publicKey, surveyId);
+        logger.info("Generated hash value: {}", hashValue);
+
+        // Überprüfe, ob der Benutzer bereits teilgenommen hat
+        boolean hasParticipated = checkIfParticipationExistsOnBlockchain(publicKey, hashValue);
+        if (hasParticipated) {
+            logger.warn("Participation already registered on blockchain for hash: {}", hashValue);
+            return false;
+        }
+
+        // Mint NFT mit dem Hash-Wert als Token ID
+        mintNFT(publicKey, points, hashValue);
+
+        return true;
+    }
+
+    private void validateInputs(String publicKey, String surveyId, String participantPoints) {
         if (publicKey == null || publicKey.isEmpty() ||
                 surveyId == null || surveyId.isEmpty() ||
                 participantPoints == null || participantPoints.isEmpty()) {
@@ -56,10 +72,8 @@ public class ParticipationService {
             throw new IllegalArgumentException("Public Key, Survey ID, and Participant Points must not be empty.");
         }
 
-        // Check if participantPoints is a valid number
-        int points;
         try {
-            points = Integer.parseInt(participantPoints);
+            int points = Integer.parseInt(participantPoints);
             if (points <= 0) {
                 logger.error("Participant Points must be a positive number. Received: {}", participantPoints);
                 throw new IllegalArgumentException("Participant Points must be a positive number.");
@@ -68,55 +82,61 @@ public class ParticipationService {
             logger.error("Participant Points is not a valid number. Received: {}", participantPoints);
             throw new IllegalArgumentException("Participant Points must be a valid number.");
         }
+    }
 
-        // Combine salt, publicKey, and surveyId
+    private boolean checkIfParticipationExistsOnBlockchain(String publicKey, String hashValue) throws Exception {
+        logger.info("Checking if participation exists on blockchain for publicKey: {}", publicKey);
+
+        // Verbinde mit der Blockchain
+        Web3j web3j = Web3j.build(new HttpService(blockchainUrl));
+
+        // Lade den Smart Contract (Read-only Operation, Credentials sind nicht unbedingt erforderlich)
+        BinexNFT contract = BinexNFT.load(
+                contractAddress,
+                web3j,
+                Credentials.create("0x0"), // Dummy Credentials für Leseoperationen
+                new StaticGasProvider(BigInteger.ZERO, BigInteger.ZERO)
+        );
+
+        // Konvertiere den Hash-Wert in BigInteger für die Token ID
+        BigInteger tokenId = new BigInteger(hashValue, 16);
+
+        // Überprüfe, ob der Token existiert
+        boolean tokenExists = contract.exists(tokenId).send();
+        if (tokenExists) {
+            // Hole den Besitzer des Tokens
+            String ownerAddress = contract.ownerOf(tokenId).send();
+            if (ownerAddress.equalsIgnoreCase(publicKey)) {
+                logger.info("User already owns the token with tokenId: {}", tokenId);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String generateHash(String publicKey, String surveyId) throws Exception {
         String combinedString = salt + publicKey + surveyId;
         logger.debug("Combined string for hashing: {}", combinedString);
 
-        // Generate hash
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hashBytes = digest.digest(combinedString.getBytes(StandardCharsets.UTF_8));
 
-        // Convert hash to hex string
+        // Konvertiere Hash in Hex-String
         StringBuilder sb = new StringBuilder();
         for (byte b : hashBytes) {
             sb.append(String.format("%02x", b));
         }
-        String hashValue = sb.toString();
-        logger.info("Generated hash value: {}", hashValue);
-
-        // Check if hash already exists
-        if (participationRepository.existsByHashValue(hashValue)) {
-            logger.warn("Participation already registered for hash: {}", hashValue);
-            return false;
-        }
-
-        // Mint NFT
-        try {
-            mintNFT(publicKey, points);
-            logger.info("NFT successfully minted, proceeding to save participation...");
-
-            // Save participation after successful minting
-            Participation participation = new Participation(hashValue, LocalDateTime.now(), points);
-            participationRepository.save(participation);
-            logger.info("Participation successfully saved with hash: {}", hashValue);
-
-        } catch (Exception e) {
-            logger.error("Error during minting process, participation will not be saved", e);
-            throw e;
-        }
-
-        return true;
+        return sb.toString();
     }
 
-    private void mintNFT(String publicKey, int participantPoints) throws Exception {
+    private void mintNFT(String publicKey, int participantPoints, String hashValue) throws Exception {
         logger.info("Starting NFT minting for publicKey: {}, participantPoints: {}", publicKey, participantPoints);
 
-        // Connect to the Q-Blockchain using the URL from application.properties
+        // Verbinde mit der Blockchain
         Web3j web3j = Web3j.build(new HttpService(blockchainUrl));
         logger.info("Connected to Q-Blockchain at URL: {}", blockchainUrl);
 
-        // Load credentials
+        // Lade die Credentials
         String privateKey = System.getenv("PRIVATE_KEY");
         if (privateKey == null || privateKey.isEmpty()) {
             logger.error("PRIVATE_KEY environment variable is not set.");
@@ -125,11 +145,11 @@ public class ParticipationService {
         Credentials credentials = Credentials.create(privateKey);
         logger.info("Credentials successfully loaded.");
 
-        // Create TransactionManager with Chain ID
+        // Erstelle den TransactionManager mit Chain ID
         RawTransactionManager transactionManager = new RawTransactionManager(web3j, credentials, chainId);
         logger.info("TransactionManager created with Chain ID {}", chainId);
 
-        // Set gas price and gas limit
+        // Setze Gaspreis und Gaslimit
         BigInteger networkGasPrice = web3j.ethGasPrice().send().getGasPrice();
         logger.info("Current network gas price: {} Wei", networkGasPrice);
 
@@ -137,11 +157,11 @@ public class ParticipationService {
         BigInteger gasLimit = BigInteger.valueOf(400_000);
         logger.info("Gas price set to {} Wei, gas limit set to {}", gasPrice, gasLimit);
 
-        // Create StaticGasProvider with defined values
+        // Erstelle den GasProvider
         StaticGasProvider gasProvider = new StaticGasProvider(gasPrice, gasLimit);
 
-        // Load Smart Contract
-        SimpleNFT contract = SimpleNFT.load(
+        // Lade den Smart Contract
+        BinexNFT contract = BinexNFT.load(
                 contractAddress,
                 web3j,
                 transactionManager,
@@ -149,18 +169,18 @@ public class ParticipationService {
         );
         logger.info("Smart Contract loaded with address: {}", contractAddress);
 
-        // Generate TokenID (e.g., based on current timestamp)
-        BigInteger tokenId = BigInteger.valueOf(System.currentTimeMillis());
-        logger.info("TokenID generated: {}", tokenId);
+        // Konvertiere den Hash-Wert in BigInteger für die Token ID
+        BigInteger tokenId = new BigInteger(hashValue, 16);
+        logger.info("TokenID generated from hash: {}", tokenId);
 
-        // Determine TokenURI based on participantPoints
+        // Bestimme den TokenURI basierend auf participantPoints
         String tokenURI = getTokenURIForPoints(participantPoints);
         logger.info("TokenURI determined: {}", tokenURI);
 
-        // Mint NFT
+        // Mint NFT mit spezifischer Token ID
         try {
             TransactionReceipt receipt = contract.mintTo(publicKey, tokenId, tokenURI).send();
-            logger.info("NFT successfully minted. Transaction Hash: {}", receipt.getTransactionHash());
+            logger.info("NFT successfully minted with tokenId: {}. Transaction Hash: {}", tokenId, receipt.getTransactionHash());
         } catch (Exception e) {
             logger.error("Error while sending transaction", e);
             throw new Exception("Error during NFT minting: " + e.getMessage(), e);
@@ -172,7 +192,7 @@ public class ParticipationService {
         String tokenURI;
         switch (participantPoints) {
             case 1:
-                tokenURI = "https://deinserver.de/metadata/1.json";
+                tokenURI = "https://binex.hsbi.de/assets/blockchain-basisc-start-image.8aa28373.jpg";
                 break;
             case 2:
                 tokenURI = "https://deinserver.de/metadata/2.json";
