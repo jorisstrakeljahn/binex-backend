@@ -14,7 +14,8 @@ public class CorsConfig {
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("https://www.soscisurvey.de"));
+        // Erlaube alle Origins (nur für Testzwecke)
+        config.setAllowedOrigins(List.of("*"));
         config.setAllowedMethods(List.of("POST"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(false);

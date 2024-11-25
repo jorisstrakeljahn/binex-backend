@@ -9,7 +9,7 @@
     // *** Umfrageersteller: Bitte hier die Einstellungen vornehmen ***
 
     // Geben Sie hier die eindeutige ID Ihrer Umfrage ein
-    var surveyId = 'survey_1'; // z.B. 'survey_12345'
+    var surveyId = 'survey_2'; // z.B. 'survey_12345'
 
     // Geben Sie hier die Anzahl der Versuchspersonenpunkte an, die für diese Umfrage vergeben werden
     var participantPoints = '1'; // z.B. '3'
@@ -24,7 +24,7 @@
             return;
         }
 
-        fetch('http://localhost:8080/api/mint-nft', {
+        fetch('https://binex-backend-321237844397.europe-west3.run.app/api/mint-nft', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
