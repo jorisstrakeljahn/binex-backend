@@ -1,0 +1,21 @@
+steps:
+  - name: 'gcr.io/cloud-builders/mvn'
+    args: ['clean', 'package', '-DskipTests']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/binex-backend', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/binex-backend']
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run deploy binex-backend \
+          --image gcr.io/$PROJECT_ID/binex-backend \
+          --region europe-west3 \
+          --platform managed \
+          --allow-unauthenticated \
+          --update-secrets=PRIVATE_KEY=PRIVATE_KEY:latest,APP_HASH_SALT=APP_HASH_SALT:latest
