@@ -1,8 +1,6 @@
-options:
-  logging: CLOUD_LOGGING_ONLY
-
 steps:
   - name: 'maven:3.9.5-eclipse-temurin-21'
+    entrypoint: 'mvn'
     args: ['clean', 'package', '-DskipTests']
 
   - name: 'gcr.io/cloud-builders/docker'
@@ -22,4 +20,3 @@ steps:
           --platform managed \
           --allow-unauthenticated \
           --update-secrets=PRIVATE_KEY=PRIVATE_KEY:latest,APP_HASH_SALT=APP_HASH_SALT:latest
-
