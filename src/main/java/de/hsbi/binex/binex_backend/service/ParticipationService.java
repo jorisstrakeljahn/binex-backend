@@ -73,12 +73,14 @@ public class ParticipationService {
         }
 
         // Überprüfe, ob surveyId gültig ist
-        if (!surveyId.equals("event1") && !surveyId.equals("event2") && !surveyId.equals("test")) {
+        if (!surveyId.equals("cashlink-nft-event") &&
+                !surveyId.equals("hsbi-logo-nft") &&
+                !surveyId.equals("test-nft-blockchain")) {
             logger.error("Invalid Survey ID: {}", surveyId);
             throw new IllegalArgumentException("Invalid Survey ID.");
         }
 
-        // participantPoints wird ignoriert, kann aber auf nicht leeren Wert überprüft werden
+        // participantPoints wird ignoriert, kann aber auf Nicht-Leerheit geprüft werden
     }
 
     private boolean checkIfParticipationExistsOnBlockchain(String publicKey, String hashValue) throws Exception {
