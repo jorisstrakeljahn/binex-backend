@@ -171,7 +171,7 @@ public class ParticipationService {
             case "cashlink-nft-event" ->
                     "https://binex.hsbi.de/assets/1-binex-nft-event-blockchain-trifft-finance.ce070184.jpg";
             case "hsbi-logo-nft" -> "https://www.designtagebuch.de/wp-content/uploads/mediathek/2023/04/hsbi-logo.jpg";
-            case "test-nft-blockchian" ->
+            case "test-nft-blockchain" ->
                     "https://www.hsbi.de/multimedia/Hochschulverwaltung/HSK/Bilder+Berichterstattung/Fachbereiche/FB+5/Veranstaltungen/2022_09_20+Kryprow%C3%A4hrung+Blockchain+Peer_to_Peer/Slider/220920_FH_Kryptowaehrung_slider_10-height-635-width-1270-p-163374.jpg";
             default -> {
                 logger.error("Invalid Survey ID: {}", surveyId);
