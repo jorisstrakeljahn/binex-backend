@@ -1,56 +1,203 @@
-<!-- Füge diesen Abschnitt am Ende deiner SoSci Survey Umfrage ein -->
 
-<h3>Gutschrift von Versuchspunkten</h3>
-<p>Um Ihre Versuchspunkte gutgeschrieben zu bekommen, geben Sie bitte Ihren Metamask Public Key ein:</p>
-<input type="text" id="publicKeyInput" placeholder="0x...">
-<button type="button" onclick="sendPublicKey()">Versuchspunkte erhalten</button>
+<style>
+    body {
+        font-family: sans-serif;
+        margin: 20px;
+    }
+
+    .hidden {
+        display: none !important;
+    }
+
+    .mint-section, .manual-mint-section {
+        margin-top: 20px;
+        padding: 20px;
+        border: 1px solid #ccc;
+    }
+
+    .mint-section h2, .manual-mint-section h2 {
+        margin-top: 0;
+    }
+
+    .manual-mint-section input {
+        width: 300px;
+        padding: 8px;
+        margin-bottom: 10px;
+    }
+
+    .manual-mint-section button {
+        padding: 8px 15px;
+        cursor: pointer;
+    }
+
+    .success-message {
+        color: green;
+        font-weight: bold;
+        margin-top: 20px;
+    }
+
+    .error-message {
+        color: red;
+        font-weight: bold;
+        margin-top: 20px;
+    }
+
+    .loading-message {
+        font-weight: bold;
+        margin-top: 20px;
+    }
+</style>
+
+<h1>NFT Claim</h1>
+<p>Wenn Sie diese Umfrage abgeschlossen haben, können Sie hier direkt Ihr NFT minten lassen.</p>
+
+<div class="mint-section" id="mintSection">
+    <h2>Metamask-Verbindung</h2>
+    <p id="metamaskStatus">Verbindung zu Metamask wird geprüft...</p>
+    <p id="loadingMsg" class="loading-message hidden">NFT wird gemintet. Bitte warten...</p>
+    <p id="successMsg" class="success-message hidden">NFT wurde erfolgreich gemintet!</p>
+    <p id="errorMsg" class="error-message hidden"></p>
+</div>
+
+<div class="manual-mint-section hidden" id="manualMintSection">
+    <h2>Manueller Mint-Prozess</h2>
+    <p>Geben Sie hier Ihren Public Key an, falls keine Verbindung mit Metamask hergestellt werden konnte:</p>
+    <input type="text" id="manualPublicKeyInput" placeholder="0x1234abc..." />
+    <br>
+    <button id="manualMintBtn">NFT jetzt minten</button>
+    <p id="manualLoadingMsg" class="loading-message hidden">NFT wird gemintet. Bitte warten...</p>
+    <p id="manualSuccessMsg" class="success-message hidden">NFT wurde erfolgreich gemintet!</p>
+    <p id="manualErrorMsg" class="error-message hidden"></p>
+</div>
 
 <script>
-    // *** Umfrageersteller: Bitte hier die Einstellungen vornehmen ***
+    // Konfiguration
+    const API_URL = "https://binex-backend-321237844397.europe-west3.run.app/api/mint-nft";
+    const SURVEY_ID = "vpp-nft-1";
+    const PARTICIPANT_POINTS = "1";
 
-    // Geben Sie hier die eindeutige ID Ihrer Umfrage ein
-    var surveyId = 'survey_2'; // z.B. 'survey_12345'
+    // Elemente referenzieren
+    const metamaskStatusEl = document.getElementById('metamaskStatus');
+    const loadingMsgEl = document.getElementById('loadingMsg');
+    const successMsgEl = document.getElementById('successMsg');
+    const errorMsgEl = document.getElementById('errorMsg');
 
-    // Geben Sie hier die Anzahl der Versuchspersonenpunkte an, die für diese Umfrage vergeben werden
-    var participantPoints = '1'; // z.B. '3'
+    const manualMintSectionEl = document.getElementById('manualMintSection');
+    const manualPublicKeyInput = document.getElementById('manualPublicKeyInput');
+    const manualMintBtn = document.getElementById('manualMintBtn');
+    const manualLoadingMsgEl = document.getElementById('manualLoadingMsg');
+    const manualSuccessMsgEl = document.getElementById('manualSuccessMsg');
+    const manualErrorMsgEl = document.getElementById('manualErrorMsg');
 
-    // *** Ende der Einstellungen ***
+    async function connectMetamaskAndMint() {
+        // Verstecke den manuellen Bereich erstmal
+        manualMintSectionEl.classList.add('hidden');
 
-    function sendPublicKey() {
-        var publicKey = document.getElementById('publicKeyInput').value.trim();
-
-        if (publicKey === '') {
-            alert('Bitte geben Sie Ihren Metamask Public Key ein.');
+        if (typeof window.ethereum === 'undefined') {
+            // Metamask nicht vorhanden
+            metamaskStatusEl.textContent = "Keine Metamask-Extension gefunden. Bitte manuell einen Public Key eingeben.";
+            showManualMintSection();
             return;
         }
 
-        fetch('https://binex-backend-321237844397.europe-west3.run.app/api/mint-nft', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: new URLSearchParams({
-                'publicKey': publicKey,
-                'surveyId': surveyId,
-                'participantPoints': participantPoints
-            })
-        })
-            .then(response => {
-                response.text().then(text => {
-                    console.log('Response Status:', response.status);
-                    console.log('Response Body:', text);
-                    if (response.ok) {
-                        alert('Ihre Versuchspunkte wurden erfolgreich gutgeschrieben.');
-                    } else if (response.status === 409) {
-                        alert('Sie haben für diese Umfrage bereits Versuchspunkte erhalten.');
-                    } else {
-                        alert('Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.');
-                    }
-                });
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.');
-            });
+        try {
+            metamaskStatusEl.textContent = "Metamask gefunden. Versuche Verbindung herzustellen...";
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            if (accounts && accounts.length > 0) {
+                const publicKey = accounts[0];
+                metamaskStatusEl.textContent = "Mit Metamask verbunden: " + publicKey;
+                // Jetzt direkt den Mint-Prozess starten
+                await mintNft(publicKey);
+            } else {
+                metamaskStatusEl.textContent = "Keine Accounts verfügbar. Bitte manuell Public Key eingeben.";
+                showManualMintSection();
+            }
+        } catch (err) {
+            console.error("Fehler bei der Metamask-Verbindung:", err);
+            metamaskStatusEl.textContent = "Fehler bei der Metamask-Verbindung. Bitte manuell Public Key eingeben.";
+            showManualMintSection();
+        }
     }
+
+    async function mintNft(publicKey) {
+        // Anzeigen, dass gemintet wird
+        loadingMsgEl.classList.remove('hidden');
+        successMsgEl.classList.add('hidden');
+        errorMsgEl.classList.add('hidden');
+
+        const queryParams = new URLSearchParams({
+            surveyId: SURVEY_ID,
+            publicKey: publicKey,
+            participantPoints: PARTICIPANT_POINTS,
+        });
+
+        try {
+            const response = await fetch(`${API_URL}?${queryParams.toString()}`, { method: 'POST' });
+            loadingMsgEl.classList.add('hidden');
+
+            if (response.ok) {
+                successMsgEl.classList.remove('hidden');
+                successMsgEl.textContent = "NFT wurde erfolgreich gemintet!";
+            } else {
+                const errorMessage = await response.text();
+                console.error("Server-Antwort:", errorMessage);
+                errorMsgEl.classList.remove('hidden');
+                errorMsgEl.textContent = "Fehler beim Minten des NFTs: " + errorMessage;
+            }
+
+        } catch (error) {
+            loadingMsgEl.classList.add('hidden');
+            console.error("Fehler beim Mint-Prozess:", error);
+            errorMsgEl.classList.remove('hidden');
+            errorMsgEl.textContent = "Ein unerwarteter Fehler ist aufgetreten.";
+        }
+    }
+
+    function showManualMintSection() {
+        // Falls die Verbindung mit Metamask nicht klappt, zeigen wir die manuelle Eingabe
+        manualMintSectionEl.classList.remove('hidden');
+    }
+
+    // Manuelles Minten (wenn kein Metamask Connect)
+    manualMintBtn.addEventListener('click', async () => {
+        const publicKey = manualPublicKeyInput.value.trim();
+        if (!publicKey) {
+            manualErrorMsgEl.classList.remove('hidden');
+            manualErrorMsgEl.textContent = "Bitte einen gültigen Public Key eingeben.";
+            return;
+        }
+
+        manualErrorMsgEl.classList.add('hidden');
+        manualSuccessMsgEl.classList.add('hidden');
+        manualLoadingMsgEl.classList.remove('hidden');
+
+        const queryParams = new URLSearchParams({
+            surveyId: SURVEY_ID,
+            publicKey: publicKey,
+            participantPoints: PARTICIPANT_POINTS
+        });
+
+        try {
+            const response = await fetch(`${API_URL}?${queryParams.toString()}`, { method: 'POST' });
+            manualLoadingMsgEl.classList.add('hidden');
+
+            if (response.ok) {
+                manualSuccessMsgEl.classList.remove('hidden');
+                manualSuccessMsgEl.textContent = "NFT wurde erfolgreich gemintet!";
+            } else {
+                const errorMessage = await response.text();
+                console.error("Server-Antwort:", errorMessage);
+                manualErrorMsgEl.classList.remove('hidden');
+                manualErrorMsgEl.textContent = "Fehler beim Minten des NFTs: " + errorMessage;
+            }
+        } catch (error) {
+            manualLoadingMsgEl.classList.add('hidden');
+            console.error("Fehler beim Mint-Prozess:", error);
+            manualErrorMsgEl.classList.remove('hidden');
+            manualErrorMsgEl.textContent = "Ein unerwarteter Fehler ist aufgetreten.";
+        }
+    });
+
+    // Beim Laden der Seite versuchen wir die Metamask-Verbindung herzustellen
+    document.addEventListener('DOMContentLoaded', connectMetamaskAndMint);
 </script>
