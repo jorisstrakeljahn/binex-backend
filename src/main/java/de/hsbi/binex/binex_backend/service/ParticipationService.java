@@ -178,9 +178,9 @@ public class ParticipationService {
             case "hsbi-logo-nft" -> "https://www.designtagebuch.de/wp-content/uploads/mediathek/2023/04/hsbi-logo.jpg";
             case "test-nft-blockchain" ->
                     "https://www.hsbi.de/multimedia/Hochschulverwaltung/HSK/Bilder+Berichterstattung/Fachbereiche/FB+5/Veranstaltungen/2022_09_20+Kryprow%C3%A4hrung+Blockchain+Peer_to_Peer/Slider/220920_FH_Kryptowaehrung_slider_10-height-635-width-1270-p-163374.jpg";
-            case "vpp-nft-1" -> "assets/VPP%20-%20NFT%201.d6cdab25.jpg";
-            case "vpp-nft-2" -> "assets/VPP%20-%20NFT%202.bee565e9.jpg";
-            case "vpp-nft-3" -> "assets/VPP%20-%20NFT%203.688f1fbb.jpg";
+            case "vpp-nft-1" -> "https://binex.hsbi.de/assets/VPP%20-%20NFT%201.d6cdab25.jpg";
+            case "vpp-nft-2" -> "https://binex.hsbi.de/assets/VPP%20-%20NFT%202.bee565e9.jpg";
+            case "vpp-nft-3" -> "https://binex.hsbi.de/assets/VPP%20-%20NFT%203.688f1fbb.jpg";
             default -> {
                 logger.error("Invalid Survey ID: {}", surveyId);
                 throw new IllegalArgumentException("Invalid Survey ID.");
